@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PCB Forge — Generate KiCad Projects from a Prompt</title>
+    <meta name="description" content="Describe your PCB in plain language and download ready-to-open KiCad schematic and board files." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              background: "#0a0a0b",
+              card: "#141416",
+              border: "#26262a",
+              input: "#26262a",
+              muted: "#1c1c20",
+              "muted-foreground": "#9ca3af",
+              foreground: "#fafafa",
+              primary: "#6366f1",
+              "primary-foreground": "#ffffff",
+              secondary: "#1c1c20",
+              "secondary-foreground": "#e5e7eb",
+              accent: "#26262a",
+              ring: "#6366f1",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .shadow-inner-soft {
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-background text-foreground antialiased">
+    <main class="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-10 sm:py-16">
+      <header class="mb-8 flex flex-col items-center text-center">
+        <span class="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <!-- circuit-board icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="M11 9h4a2 2 0 0 0 2-2V3" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="M7 21v-4a2 2 0 0 1 2-2h4" />
+            <circle cx="15" cy="15" r="2" />
+          </svg>
+        </span>
+        <h1 class="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+          PCB Forge
+        </h1>
+        <p class="mt-2 max-w-md text-pretty text-sm text-muted-foreground sm:text-base">
+          Describe the circuit you want to build. Generate a KiCad project and download the schematic and board files, ready to open in KiCad.
+        </p>
+      </header>
+
+      <div class="flex flex-col gap-6">
+        <!-- Prompt card -->
+        <div class="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <label for="pcb-prompt" class="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+            <!-- sparkles icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary" aria-hidden="true">
+              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z" />
+            </svg>
+            Describe your PCB
+          </label>
+          <textarea
+            id="pcb-prompt"
+            rows="7"
+            placeholder="e.g. A battery-powered temperature logger using an ESP32-C3, an SHT40 sensor over I2C, a microSD slot, and a USB-C charging circuit for a 500mAh LiPo..."
+            class="w-full resize-y rounded-xl border border-input bg-background px-4 py-3 text-sm leading-relaxed text-foreground shadow-inner-soft outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+          ></textarea>
+
+          <div class="mt-4 flex flex-wrap items-center gap-2" id="sample-prompts">
+            <span class="text-xs text-muted-foreground">Try:</span>
+          </div>
+
+          <button id="generate-btn" type="button" class="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50">
+            <span id="generate-btn-content" class="inline-flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path d="M11 9h4a2 2 0 0 0 2-2V3" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="M7 21v-4a2 2 0 0 1 2-2h4" />
+                <circle cx="15" cy="15" r="2" />
+              </svg>
+              Generate KiCad Project
+            </span>
+          </button>
+        </div>
+
+        <!-- Output section -->
+        <div id="output" aria-live="polite" class="rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors sm:p-8">
+          <div class="mb-5 flex items-center gap-2">
+            <!-- cpu icon -->
+            <svg id="output-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground" aria-hidden="true">
+              <path d="M12 20v2" /><path d="M12 2v2" /><path d="M17 20v2" /><path d="M17 2v2" /><path d="M2 12h2" /><path d="M2 17h2" /><path d="M2 7h2" /><path d="M20 12h2" /><path d="M20 17h2" /><path d="M20 7h2" /><path d="M7 20v2" /><path d="M7 2v2" />
+              <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="8" y="8" width="8" height="8" rx="1" />
+            </svg>
+            <h2 class="text-sm font-semibold text-foreground">Project files</h2>
+          </div>
+
+          <div id="output-empty">
+            <p class="text-sm text-muted-foreground">
+              Your <code class="rounded bg-muted px-1 py-0.5 text-xs">.kicad_sch</code> and
+              <code class="rounded bg-muted px-1 py-0.5 text-xs">.kicad_pcb</code> downloads will appear here after you generate a project.
+            </p>
+          </div>
+
+          <div id="output-files" class="hidden grid gap-4 sm:grid-cols-2">
+            <button id="download-sch" type="button" class="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
+              <span class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <!-- file-text icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" />
+                </svg>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-foreground" data-filename data-ext=".kicad_sch"></span>
+                <span class="block text-xs text-muted-foreground">Schematic file</span>
+              </span>
+              <!-- download icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground transition-colors group-hover:text-primary" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" />
+              </svg>
+            </button>
+
+            <button id="download-pcb" type="button" class="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:border-primary/50 hover:shadow-md">
+              <span class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <!-- circuit-board icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect width="18" height="18" x="3" y="3" rx="2" /><path d="M11 9h4a2 2 0 0 0 2-2V3" /><circle cx="9" cy="9" r="2" /><path d="M7 21v-4a2 2 0 0 1 2-2h4" /><circle cx="15" cy="15" r="2" />
+                </svg>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-foreground" data-filename data-ext=".kicad_pcb"></span>
+                <span class="block text-xs text-muted-foreground">Board layout file</span>
+              </span>
+              <!-- download icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground transition-colors group-hover:text-primary" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        var SAMPLE_PROMPTS = [
+          "555 timer LED blinker at 1Hz",
+          "USB-C powered ESP32 dev board",
+          "Dual op-amp audio preamp with gain control",
+        ];
+
+        var promptEl = document.getElementById("pcb-prompt");
+        var generateBtn = document.getElementById("generate-btn");
+        var generateBtnContent = document.getElementById("generate-btn-content");
+        var output = document.getElementById("output");
+        var outputIcon = document.getElementById("output-icon");
+        var outputEmpty = document.getElementById("output-empty");
+        var outputFiles = document.getElementById("output-files");
+        var samplesContainer = document.getElementById("sample-prompts");
+
+        var isGenerating = false;
+        var files = null;
+
+        var GENERATE_ICON =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M11 9h4a2 2 0 0 0 2-2V3" /><circle cx="9" cy="9" r="2" /><path d="M7 21v-4a2 2 0 0 1 2-2h4" /><circle cx="15" cy="15" r="2" /></svg>';
+        var LOADER_ICON =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="animate-spin" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>';
+
+        // The bridge function connecting to your local Express backend
+        async function callKiCadTool(toolName, toolArgs) {
+          try {
+            const response = await fetch('http://localhost:3000/api/tools', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ toolName, toolArgs }),
+            });
+
+            const data = await response.json();
+            
+            if (data.isError) {
+              console.error("KiCad Error:", data.content[0].text);
+              alert("Error from KiCad: " + data.content[0].text);
+              return null;
+            }
+            
+            console.log("KiCad Success:", data.content);
+            return data.content;
+            
+          } catch (error) {
+            console.error("Network Error:", error);
+            alert("Backend bridge not connected. Is node index.js running?");
+            return null;
+          }
+        }
+
+        function projectName() {
+          var name = promptEl.value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .slice(0, 40);
+          return name || "pcb-project";
+        }
+
+        function download(content, filename) {
+          var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        }
+
+        function updateButtonState() {
+          generateBtn.disabled = !promptEl.value.trim() || isGenerating;
+        }
+
+        function renderFilenames() {
+          var name = projectName();
+          var nodes = document.querySelectorAll("[data-filename]");
+          for (var i = 0; i < nodes.length; i++) {
+            nodes[i].textContent = name + nodes[i].getAttribute("data-ext");
+          }
+        }
+
+        function showFiles() {
+          outputEmpty.classList.add("hidden");
+          outputFiles.classList.remove("hidden");
+          output.classList.remove("border-border", "bg-muted/30");
+          output.classList.add("border-primary/40", "bg-primary/5");
+          outputIcon.classList.remove("text-muted-foreground");
+          outputIcon.classList.add("text-primary");
+          renderFilenames();
+        }
+
+        async function handleGenerate() {
+      if (!promptEl.value.trim() || isGenerating) return;
+      
+      isGenerating = true;
+      files = null;
+      updateButtonState();
+      generateBtnContent.innerHTML = LOADER_ICON + "AI is designing your PCB...";
+
+      const userPrompt = promptEl.value;
+
+      try {
+        // Send the English prompt to our new AI Brain endpoint
+        const response = await fetch('http://localhost:3000/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: userPrompt }),
+        });
+
+        const data = await response.json();
+        
+        if (data.error) {
+          alert("AI Error: " + data.error);
+        } else {
+          console.log("AI execution complete!", data.results);
+          
+          // Load the actual file strings sent from the backend!
+          files = {
+            sch: data.files.sch,
+            pcb: data.files.pcb,
+          };
+          
+          showFiles();
+          requestAnimationFrame(function () {
+            output.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Backend bridge failed. Is index.js running?");
+      }
+
+      isGenerating = false;
+      generateBtnContent.innerHTML = GENERATE_ICON + "Generate KiCad Project";
+      updateButtonState();
+    }
+
+        // Build sample prompt chips
+        SAMPLE_PROMPTS.forEach(function (s) {
+          var chip = document.createElement("button");
+          chip.type = "button";
+          chip.textContent = s;
+          chip.className = "rounded-full border border-border bg-secondary px-3 py-1 text-xs text-secondary-foreground transition-colors hover:bg-accent";
+          chip.addEventListener("click", function () {
+            promptEl.value = s;
+            updateButtonState();
+            if (files) renderFilenames();
+          });
+          samplesContainer.appendChild(chip);
+        });
+
+        promptEl.addEventListener("input", function () {
+          updateButtonState();
+          if (files) renderFilenames();
+        });
+
+        promptEl.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.isComposing) {
+            e.preventDefault();
+            handleGenerate();
+          }
+        });
+
+        generateBtn.addEventListener("click", handleGenerate);
+
+        document.getElementById("download-sch").addEventListener("click", function () {
+          if (files) download(files.sch, projectName() + ".kicad_sch");
+        });
+        document.getElementById("download-pcb").addEventListener("click", function () {
+          if (files) download(files.pcb, projectName() + ".kicad_pcb");
+        });
+
+        updateButtonState();
+      })();
+    </script>
+  </body>
+</html>
